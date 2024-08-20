@@ -10,16 +10,7 @@ import os
 streams, file_header = pyxdf.load_xdf("sub-P001_ses-S001_task-Default_run-001_eeg.xdf")
 conf = snirf.SnirfConfig()
 
-xdf_fnirs_streams = []
-xdf_aux_streams = []
 
-
-for stream in streams:
-    print(stream["info"]["type"])
-    if stream["info"]["type"] == ["NIRS"]:
-        xdf_fnirs_streams.append(stream)
-    else:
-        xdf_aux_streams.append(stream)
 
 
 
@@ -30,7 +21,7 @@ class XdfToSnirfMeasurmentListElement():
     def __init__(self, xdf_channel, probe: snirf.Probe):
         self.xdf_channel = xdf_channel
         self.snirf_probe = probe
-        self.measurmentListElement = snirf.MeasurementListElement('/nirs/data1/measurementList1', conf)
+        self.measurmentListElement = snirf.MeasurementListElement('', conf)
         self.populate_measurment_list_element()
 
     def PopulateSourceIndex(self):
@@ -393,56 +384,65 @@ class XdfToSnirfProbe():
 
 
 class XdfToSnirfMeasurmentList():
-    def __init__(self, xdf_fnirs_stream, probe: snirf.Probe):
-        self.measurementList = snirf.MeasurementList(snirf_base, conf)
-        for i, channel in enumerate(xdf_fnirs_stream["info"]["desc"][0]["channels"][0]["channel"]):
+    def __init__(self, xdf_fnirs_stream, snirf_file, probe: snirf.Probe):
+        self.measurementList = snirf.MeasurementList(snirf_file, conf)
+        for channel in xdf_fnirs_stream["info"]["desc"][0]["channels"][0]["channel"]:
             self.measurementList.append(XdfToSnirfMeasurmentListElement(channel, probe).measurmentListElement)
 
 
 
 class XdfToSnirfDataElement():
-    def __init__(self, xdf_fnirs_stream, probe: snirf.Probe):
-        self.dataElement = snirf.DataElement("DATAELEMENT_GID", conf)
-        self.dataElement.measurementList = XdfToSnirfMeasurmentList(xdf_fnirs_stream, probe).measurementList
+    def __init__(self, xdf_fnirs_stream, snirf_file, probe: snirf.Probe):
+        self.dataElement = snirf.DataElement("", conf)
+        self.dataElement.measurementList = XdfToSnirfMeasurmentList(xdf_fnirs_stream, snirf_file, probe).measurementList
 
 
 
 class XdfToSnirfData():
-    def __init__(self, probe: snirf.Probe, xdf_fnirs_stream):
-        snirf_data_elemtent =  XdfToSnirfDataElement(xdf_fnirs_stream, probe)
-        self.data = snirf.Data(snirf_base, conf)
+    def __init__(self, probe: snirf.Probe, xdf_fnirs_stream, snirf_file):
+        snirf_data_elemtent =  XdfToSnirfDataElement(xdf_fnirs_stream, snirf_file, probe)
+        self.data = snirf.Data(snirf_file, conf)
         self.data.append(snirf_data_elemtent.dataElement)
 
 
-        
-class XdfToSnirf():
-    def __init__(self):
-        
-        self.nirs = snirf.Nirs(snirf_base, conf) 
-        
-        if len(xdf_fnirs_streams) == 1:
-            self.nirs.append(XdfToSnirfNirsElement(xdf_fnirs_streams[0]).NirsElement)
-        else:
-            for i, fnirs_stream in enumerate(xdf_fnirs_streams):
-                self.nirs.append(XdfToSnirfNirsElement(fnirs_stream).NirsElement)
-        
-
 class XdfToSnirfNirsElement():
-    def __init__(self, xdf_fnirs_stream):
-        self.NirsElement = snirf.NirsElement("NirsElement_GID" , conf)
-        self.NirsElement.probe = XdfToSnirfProbe(xdf_fnirs_stream).probe
-        self.NirsElement.data = XdfToSnirfData(self.NirsElement.probe, xdf_fnirs_stream).data
+    def __init__(self, xdf_streams, snirf_file):
+        xdf_fnirs_stream = None
+        xdf_aux_streams = []
+        for stream in xdf_streams:
+            print(stream["info"]["type"])
+            if stream["info"]["type"] == ["NIRS"]:
+                xdf_fnirs_stream = stream
+            else:
+                xdf_aux_streams.append(stream)
         
+        self.NirsElement = snirf.NirsElement("" , conf)
+        self.NirsElement.probe = XdfToSnirfProbe(xdf_fnirs_stream).probe
+        self.NirsElement.data = XdfToSnirfData(self.NirsElement.probe, xdf_fnirs_stream, snirf_file).data
 
 
-os.remove("./converted.snirf")
-snirf_base = snirf.Snirf("converted.snirf")
-converted_snirf = XdfToSnirf()
-snirf_base.nirs = converted_snirf.nirs
-snirf_base.save(snirf_base)
+class XdfToSnirfNirs():
+    def __init__(self, xdf_streams, snirf_file): #how do we map aux xdf data stream to nirs stream? for now assume only 1 nirs stream
+        self.nirs = snirf.Nirs(snirf_file, conf) 
+        self.nirs.append(XdfToSnirfNirsElement(xdf_streams, snirf_file).NirsElement)
 
-result = snirf.validateSnirf("converted.snirf")
 
-pass
-#snirf_measurement_list = snirf.MeasurementList(s, conf)
-#populate_measurment_list(snirf_measurement_list, snirf_probe)
+
+
+
+class XdfToSnirf():
+    def __init__(self, path_to_snirf, path_to_xdf) -> None:
+        self.snirf = snirf.Snirf(path_to_snirf)
+        xdf_streams, file_header = pyxdf.load_xdf(path_to_xdf)
+        self.snirf.nirs = XdfToSnirfNirs(xdf_streams, self.snirf).nirs
+        self.snirf.save(path_to_snirf)
+        result = snirf.validateSnirf(path_to_snirf)
+
+
+path_to_xdf = "sub-P001_ses-S001_task-Default_run-001_eeg.xdf"
+path_to_snirf = "./converted.snirf"
+conf = snirf.SnirfConfig()
+
+
+os.remove(path_to_snirf) #need to remove
+converted_snirf = XdfToSnirf(path_to_snirf, path_to_xdf)
