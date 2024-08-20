@@ -36,8 +36,14 @@ class SnirfStreamer:
             self.PopulateOptode(optode, False, i)
 
          
-        fiducials = self.stream_info.desc().append_child("fiducials")
-        if self.snirf_probe.landmarkPos2D is not None:
+        if self.snirf_probe.landmarkPos3D is not None:
+            fiducials = self.stream_info.desc().append_child("fiducials")
+            for i in range(len(self.snirf_probe.landmarkPos3D)):
+                fiducial = fiducials.append_child("fiducial")
+                self.PopulateFiducial(fiducial, i)  
+       
+        elif self.snirf_probe.landmarkPos2D is not None:
+            fiducials = self.stream_info.desc().append_child("fiducials")
             for i in range(len(self.snirf_probe.landmarkPos2D)):
                 fiducial = fiducials.append_child("fiducial")
                 self.PopulateFiducial(fiducial, i)     
@@ -76,14 +82,17 @@ class SnirfStreamer:
         if measurement_list_element.detectorGain:
             channel.append_child_value("gain", measurement_list_element.detectorGain)
 
+        #wavelen
+        channel.append_child_value("wavelen", str(self.snirf_probe.wavelengths[measurement_list_element.wavelengthIndex - 1]))
+
         #wavelen_measured
         if measurement_list_element.wavelengthActual:
-            channel.append_child_value("wavelen_measured", measurement_list_element.wavelengthActual)
+            channel.append_child_value("wavelen_measured", str(measurement_list_element.wavelengthActual))
 
         #frequency domain
         #if utils.Is_Frequency_Domain(measurement_list.dataType):
         if  self.snirf_probe.frequencies:
-            frequency = utils.convert(self.snirf_meta_data.FrequencyUnit, "Hz", self.snirf_probe.frequencies[measurement_list_element.dataTypeIndex])
+            frequency = str(utils.convert(self.snirf_meta_data.FrequencyUnit, "Hz", self.snirf_probe.frequencies[measurement_list_element.dataTypeIndex]))
             fd = channel.append_child("fd")
             fd.append_child_value("frequency", frequency)
 
@@ -156,16 +165,20 @@ class SnirfStreamer:
         location = fiducial.append_child("location")
         if self.snirf_probe.landmarkPos2D is not None:
             postions = self.snirf_probe.landmarkPos2D
-            location.append_child_value("X", utils.convert(self.snirf_meta_data.LengthUnit, "mm", postions[i][0]))
-            location.append_child_value("Y", utils.convert(self.snirf_meta_data.LengthUnit, "mm", postions[i][1]))
-            label = self.snirf_probe.landmarkLabels[postions[i][2]]
+            location.append_child_value("X", str(utils.convert(self.snirf_meta_data.LengthUnit, "mm", postions[i][0])))
+            location.append_child_value("Y", str(utils.convert(self.snirf_meta_data.LengthUnit, "mm", postions[i][1])))
+            if len(postions[i]) == 3:
+                label = self.snirf_probe.landmarkLabels[postions[i][2]]
+                fiducial.append_child_value("label", label)
+
         else:
             postions = self.snirf_probe.landmarkPos3D
-            location.append_child_value("X", utils.convert(self.snirf_meta_data.LengthUnit, "mm", postions[i][0]))
-            location.append_child_value("Y", utils.convert(self.snirf_meta_data.LengthUnit, "mm", postions[i][1]))
-            location.append_child_value("Z", utils.convert(self.snirf_meta_data.LengthUnit, "mm", postions[i][2]))
-            label = self.snirf_probe.landmarkLabels[postions[i][3]]
-        fiducial.append_child_value("label", label)
+            location.append_child_value("X", str(utils.convert(self.snirf_meta_data.LengthUnit, "mm", postions[i][0])))
+            location.append_child_value("Y", str(utils.convert(self.snirf_meta_data.LengthUnit, "mm", postions[i][1])))
+            location.append_child_value("Z", str(utils.convert(self.snirf_meta_data.LengthUnit, "mm", postions[i][2])))
+            if len(postions[i]) == 4:
+                label = self.snirf_probe.landmarkLabels[postions[i][3]]
+                fiducial.append_child_value("label", label)
 
     def StreamOverLSL(self):
         stream_outlet = pylsl.stream_outlet(self.stream_info)
