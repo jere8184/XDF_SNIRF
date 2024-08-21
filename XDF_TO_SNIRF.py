@@ -57,7 +57,8 @@ class XdfToSnirfMeasurmentListElement():
         elif Is_Gated_Time_Domain(self.measurmentListElement.dataType) or Is_Gated_Time_Domain(self.measurmentListElement.dataType):
             self.measurmentListElement.dataTypeIndex = get_index(self.snirf_probe.timeDelays, get(self.xdf_channel, "td.delay")) + 1
         else:
-            self.measurmentListElement.dataTypeIndex = 1
+            self.measurmentListElement.dataTypeIndex = 1 
+
 
     def PopulateSourcePower(self):
         self.measurmentListElement.sourcePower = get(self.xdf_channel, "power")
@@ -87,7 +88,7 @@ class XdfToSnirfProbe():
         self.xdf_detector_optodes = []
         if xdf_fnirs_stream["info"]["desc"][0]["fiducials"]:
             self.xdf_fiducials = xdf_fnirs_stream["info"]["desc"][0]["fiducials"][0]["fiducial"]
-        self.probe = snirf.Probe("PROBEGID", conf)
+        self.probe = snirf.Probe("", conf)
         self.SeperateXdfOptodes()
         self.PopulateProbe()
 
@@ -201,8 +202,8 @@ class XdfToSnirfProbe():
         for channel in self.xdf_channels:
             data_type = Get_DataType(get(channel, "measure"))
             if  Is_Gated_Time_Domain(data_type) or Is_Moment_Time_Domain(data_type):
-                try_add(delays, get(channel, "delay"))
-                try_add(widths, get(channel, "width"))
+                try_add(delays, convert("ps", "s", get(channel, "delay")))
+                try_add(widths, convert("ps", "s", get(channel, "width")))
 
         self.probe.correlationTimeDelays = list(delays)
         self.probe.correlationTimeDelayWidths = list(widths)
@@ -215,9 +216,9 @@ class XdfToSnirfProbe():
         for channel in self.xdf_channels:
             data_type = Get_DataType(get(channel, "measure"))
             if  Is_Gated_Time_Domain(data_type) or Is_Moment_Time_Domain(data_type):
-                try_add(delays, get(channel, "td.delay"))
-                try_add(widths, get(channel, "td.width"))
-                try_add(orders, get(channel,"td.order"))
+                try_add(delays, convert("ps", "s" ,get(channel, "td.delay")))
+                try_add(widths, convert("ps", "s" ,get(channel, "td.width")))
+                try_add(orders, get(channel,"td.order")) #need to look into this
         
         self.probe.timeDelays = list(delays)
         self.probe.timeDelayWidths = list(widths)
@@ -241,9 +242,29 @@ class XdfToSnirfMeasurmentList():
 
 
 
+class XdfToSnirfAuxElement():
+    def __init__(self, xdf_aux_stream) -> None:
+        self.auxElement = snirf.AuxElement("", conf)
+        self.auxElement.time = xdf_aux_stream["time"]
+        self.auxElement.dataTimeSeries = xdf_aux_stream["time_series"]
+        self.auxElement.name = get(xdf_aux_stream, "info.name")
+
+
+
+class XdfToSnirfAux():
+    def __init__(self, xdf_aux_streams) -> None:
+        self.aux = snirf.Aux("", conf)
+        for aux_stream in xdf_aux_streams:
+            self.aux.append(XdfToSnirfAuxElement(aux_stream).auxElement)
+
+
+
+
 class XdfToSnirfDataElement():
     def __init__(self, xdf_fnirs_stream, snirf_file, probe: snirf.Probe):
         self.dataElement = snirf.DataElement("", conf)
+        self.dataElement.time = xdf_fnirs_stream["time_stamps"]
+        self.dataElement.dataTimeSeries = xdf_fnirs_stream["time_series"]
         self.dataElement.measurementList = XdfToSnirfMeasurmentList(xdf_fnirs_stream, snirf_file, probe).measurementList
 
 
@@ -262,11 +283,20 @@ class XdfToSnirfNirsElement():
         for stream in xdf_streams:
             print(stream["info"]["type"])
             if stream["info"]["type"] == ["NIRS"]:
-                xdf_fnirs_stream = stream
+                xdf_fnirs_stream = stream #assume only one nirs stream peer snirf
             else:
                 xdf_aux_streams.append(stream)
-        
+
         self.NirsElement = snirf.NirsElement("" , conf)
+
+
+        for xdf_aux_stream in xdf_aux_streams:
+            self.NirsElement.aux = XdfToSnirfAux(xdf_aux_stream).aux
+
+        self.NirsElement.metaDataTags.FrequencyUnit = "Hz"
+        self.NirsElement.metaDataTags.TimeUnit = "s"
+        self.NirsElement.metaDataTags.LengthUnit = "mm"
+        self.NirsElement.metaDataTags.add("PowerUnit", "mW")
         self.NirsElement.probe = XdfToSnirfProbe(xdf_fnirs_stream).probe
         self.NirsElement.data = XdfToSnirfData(self.NirsElement.probe, xdf_fnirs_stream, snirf_file).data
 
@@ -283,6 +313,7 @@ class XdfToSnirfNirs():
 class XdfToSnirf():
     def __init__(self, path_to_snirf, path_to_xdf) -> None:
         self.snirf = snirf.Snirf(path_to_snirf)
+        self.snirf.formatVersion = 1.0
         xdf_streams, file_header = pyxdf.load_xdf(path_to_xdf)
         self.snirf.nirs = XdfToSnirfNirs(xdf_streams, self.snirf).nirs
         self.snirf.save(path_to_snirf)
