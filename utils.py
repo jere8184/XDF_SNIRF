@@ -1,12 +1,11 @@
 from astropy import units as u
 import pydash
-import traceback
 
 
 def get(dict_to_search, path: str):
     try:
         value: str = pydash.get(dict_to_search, path)[0]
-        if isinstance(value, dict):
+        if isinstance(value, dict) or isinstance(value, list):
             return value
         if value.lstrip('-+').replace('.','', 1).isnumeric():
             value = float(value)
