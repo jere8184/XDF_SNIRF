@@ -1,8 +1,7 @@
 import pyxdf
 import snirf
 from utils import *
-import numpy
-import traceback
+from xdf_formatter import LumoxdfToStandardxdf
 import os
 
 
@@ -24,7 +23,7 @@ class XdfToSnirfMeasurmentListElement():
         self.populate_measurment_list_element()
 
     def PopulateSourceIndex(self):
-            self.measurmentListElement.sourceIndex =  get_index(self.snirf_probe.sourceLabels, get(self.xdf_channel, "source")) + 1
+        self.measurmentListElement.sourceIndex =  get_index(self.snirf_probe.sourceLabels, get(self.xdf_channel, "source")) + 1
 
     def PopulateDetectorIndex(self):
             self.measurmentListElement.detectorIndex =  get_index(self.snirf_probe.detectorLabels, get(self.xdf_channel, "detector")) + 1
@@ -39,7 +38,7 @@ class XdfToSnirfMeasurmentListElement():
         self.measurmentListElement.wavelengthEmissionActual = get(self.xdf_channel, "fluorescence.wavelen_measured")
 
     def PopulateDataType(self):
-            self.measurmentListElement.dataType =  Get_DataType(get(self.xdf_channel, "measure"))
+        self.measurmentListElement.dataType =  Get_DataType(get(self.xdf_channel, "measure"))
 
     def PopulateDataUnit(self):
         self.measurmentListElement.dataUnit = get(self.xdf_channel, "unit")
@@ -82,12 +81,11 @@ class XdfToSnirfMeasurmentListElement():
 
 class XdfToSnirfProbe():
     def __init__(self, xdf_fnirs_stream):
-        self.xdf_channels = xdf_fnirs_stream["info"]["desc"][0]["channels"][0]["channel"]
-        self.xdf_optodes = xdf_fnirs_stream["info"]["desc"][0]["optodes"][0]["optode"]
+        self.xdf_channels = get(xdf_fnirs_stream, "info.desc.channels.channel")
+        self.xdf_optodes = get(xdf_fnirs_stream, "info.desc.optodes.optode")
         self.xdf_source_optodes = []
         self.xdf_detector_optodes = []
-        if xdf_fnirs_stream["info"]["desc"][0]["fiducials"]:
-            self.xdf_fiducials = xdf_fnirs_stream["info"]["desc"][0]["fiducials"][0]["fiducial"]
+        self.xdf_fiducials = get(xdf_fnirs_stream, "info.desc.fiducials.fiducial")
         self.probe = snirf.Probe("", conf)
         self.SeperateXdfOptodes()
         self.PopulateProbe()
@@ -95,27 +93,23 @@ class XdfToSnirfProbe():
 
     def PopulateProbe(self):
         self.PopulateWaveLegnths()
-        self.PopulateSourcePos2D()
-        self.PopulateSourcePos3D()
-        self.PopulateDetectorPos2D()
-        self.PopulateDetectorPos3D()
+        self.PopulateSourcePos()
+        self.PopulateDetectorPos()
         self.PopulateFrequencies()
         self.PopulateTimeDelays()
         self.PopulateCorrelationTimeDelays()
         self.PopulateSourceLabels()
         self.PopulateDetectorLabels()
         self.PopulateLandmarkLabels()
-        self.PopulateLandmarkPos2D()
-        self.PopulateLandmarkPos3D()
-        self.PopulateDetectorPos3D()
+        self.PopulateLandmarkPos()
 
     
     def PopulateLandmarkLabels(self):
-        labels = []
+        labels = set()
         for fiducial in self.xdf_fiducials:
-            try_append(labels, get(fiducial, "label"))
+            try_add(labels, get(fiducial, "label"), "None")
         if labels:
-            self.probe.landmarkLabels = labels
+            self.probe.landmarkLabels = list(labels)
 
     def PopulateLandmarkPos2D(self):
         position = []
@@ -135,6 +129,27 @@ class XdfToSnirfProbe():
             try_append(position, l, all=True)
         self.probe.landmarkPos3D = position
 
+    def PopulateLandmarkPos(self):
+        self.probe.landmarkPos3D = []
+        self.probe.landmarkPos2D = []
+        for fiducial in self.xdf_fiducials:
+            X = get(fiducial, "location.X")
+            Y = get(fiducial, "location.Y")
+            Z = get(fiducial, "location.Z")
+            label = get(fiducial, "label")
+            label_index = None
+            if label:
+                label_index = get_index(self.probe.landmarkLabels, label) + 1
+            l = [X, Y]
+            if Z:
+                try_append(l, Z)
+                try_append(l, label_index)
+                self.probe.landmarkPos3D.append(l)
+            else:
+                try_append(l, label_index)
+                self.probe.landmarkPos2D.append(l)
+
+
     def PopulateSourcePos2D(self):
         postions = []
         for optode in self.xdf_source_optodes:
@@ -153,12 +168,39 @@ class XdfToSnirfProbe():
             try_append(postions, [get(optode, "location.X"), get(optode, "location.Y"), get(optode, "location.Z")], all=True)
         self.probe.sourcePos3D = postions
 
+    def PopulateSourcePos(self):
+        self.probe.sourcePos3D = []
+        self.probe.sourcePos2D = []
+        for fiducial in self.xdf_detector_optodes:
+            X = get(fiducial, "location.X")
+            Y = get(fiducial, "location.Y")
+            Z = get(fiducial, "location.Z")
+            l = [X, Y]
+            if Z:
+                l.append(Z)
+                self.probe.sourcePos3D.append(l)
+            else:
+                self.probe.sourcePos2D.append(l)
+
     def PopulateDetectorPos3D(self):
         postions = []
         for optode in self.xdf_detector_optodes:
             try_append(postions, [get(optode, "location.X"), get(optode, "location.Y"), get(optode, "location.Z")], all=True)
         self.probe.detectorPos3D = postions
 
+    def PopulateDetectorPos(self):
+        self.probe.detectorPos3D = []
+        self.probe.detectorPos2D = []
+        for fiducial in self.xdf_detector_optodes:
+            X = get(fiducial, "location.X")
+            Y = get(fiducial, "location.Y")
+            Z = get(fiducial, "location.Z")
+            l = [X, Y]
+            if Z:
+                l.append(Z)
+                self.probe.detectorPos3D.append(l)
+            else:
+                self.probe.detectorPos2D.append(l)
         
     def PopulateSourceLabels(self):
         labels = []
@@ -201,9 +243,9 @@ class XdfToSnirfProbe():
         widths = set()
         for channel in self.xdf_channels:
             data_type = Get_DataType(get(channel, "measure"))
-            if  Is_Gated_Time_Domain(data_type) or Is_Moment_Time_Domain(data_type):
-                try_add(delays, convert("ps", "s", get(channel, "delay")))
-                try_add(widths, convert("ps", "s", get(channel, "width")))
+            if  Is_DCS(data_type):
+                try_add(delays, convert("ps", "s", get(channel, "dsc.delay")))
+                try_add(widths, convert("ps", "s", get(channel, "dcs.width")))
 
         self.probe.correlationTimeDelays = list(delays)
         self.probe.correlationTimeDelayWidths = list(widths)
@@ -237,16 +279,18 @@ class XdfToSnirfProbe():
 class XdfToSnirfMeasurmentList():
     def __init__(self, xdf_fnirs_stream, snirf_file, probe: snirf.Probe):
         self.measurementList = snirf.MeasurementList(snirf_file, conf)
-        for channel in xdf_fnirs_stream["info"]["desc"][0]["channels"][0]["channel"]:
+        for i,channel in enumerate(get(xdf_fnirs_stream, "info.desc.channels.channel")):
             self.measurementList.append(XdfToSnirfMeasurmentListElement(channel, probe).measurmentListElement)
+            if i == 999:
+                break
 
 
 
 class XdfToSnirfAuxElement():
     def __init__(self, xdf_aux_stream) -> None:
         self.auxElement = snirf.AuxElement("", conf)
-        self.auxElement.time = xdf_aux_stream["time"]
-        self.auxElement.dataTimeSeries = xdf_aux_stream["time_series"]
+        self.auxElement.time = get(xdf_aux_stream, "time")
+        self.auxElement.dataTimeSeries = get(xdf_aux_stream, "time_series")
         self.auxElement.name = get(xdf_aux_stream, "info.name")
 
 
@@ -258,13 +302,11 @@ class XdfToSnirfAux():
             self.aux.append(XdfToSnirfAuxElement(aux_stream).auxElement)
 
 
-
-
 class XdfToSnirfDataElement():
     def __init__(self, xdf_fnirs_stream, snirf_file, probe: snirf.Probe):
         self.dataElement = snirf.DataElement("", conf)
-        self.dataElement.time = xdf_fnirs_stream["time_stamps"]
-        self.dataElement.dataTimeSeries = xdf_fnirs_stream["time_series"]
+        self.dataElement.time = get(xdf_fnirs_stream, "time_stamps")[:1000]
+        self.dataElement.dataTimeSeries = get(xdf_fnirs_stream, "time_series")[:,:1000]
         self.dataElement.measurementList = XdfToSnirfMeasurmentList(xdf_fnirs_stream, snirf_file, probe).measurementList
 
 
@@ -281,8 +323,9 @@ class XdfToSnirfNirsElement():
         xdf_fnirs_stream = None
         xdf_aux_streams = []
         for stream in xdf_streams:
-            print(stream["info"]["type"])
-            if stream["info"]["type"] == ["NIRS"]:
+            if get(stream, "info.type") == "NIRS":
+                if get(stream, "info.name") == 'LUMO HA00030/GA00324':
+                    stream = LumoxdfToStandardxdf(stream).stream
                 xdf_fnirs_stream = stream #assume only one nirs stream peer snirf
             else:
                 xdf_aux_streams.append(stream)
@@ -297,6 +340,9 @@ class XdfToSnirfNirsElement():
         self.NirsElement.metaDataTags.TimeUnit = "s"
         self.NirsElement.metaDataTags.LengthUnit = "mm"
         self.NirsElement.metaDataTags.add("PowerUnit", "mW")
+        self.NirsElement.metaDataTags.MeasurementDate = "2024-08-21"
+        self.NirsElement.metaDataTags.MeasurementTime = "00:00:00"
+        self.NirsElement.metaDataTags.SubjectID = "Jeremiah"
         self.NirsElement.probe = XdfToSnirfProbe(xdf_fnirs_stream).probe
         self.NirsElement.data = XdfToSnirfData(self.NirsElement.probe, xdf_fnirs_stream, snirf_file).data
 
@@ -311,20 +357,29 @@ class XdfToSnirfNirs():
 
 
 class XdfToSnirf():
-    def __init__(self, path_to_snirf, path_to_xdf) -> None:
+    def __init__(self, path_to_snirf, path_to_xdf, validate) -> None:
         self.snirf = snirf.Snirf(path_to_snirf)
         self.snirf.formatVersion = 1.0
         xdf_streams, file_header = pyxdf.load_xdf(path_to_xdf)
         self.snirf.nirs = XdfToSnirfNirs(xdf_streams, self.snirf).nirs
         self.snirf.save(path_to_snirf)
-        self.result = snirf.validateSnirf(path_to_snirf)
+        if validate:
+            print("validating ", path_to_snirf)
+            self.result = snirf.validateSnirf(path_to_snirf)
 
 
 path_to_xdf = "sub-P001_ses-S001_task-Default_run-001_eeg.xdf"
 path_to_snirf = "./converted.snirf"
 conf = snirf.SnirfConfig()
 
-
 os.remove(path_to_snirf) #need to remove
-converted_snirf = XdfToSnirf(path_to_snirf, path_to_xdf)
+converted_snirf = XdfToSnirf(path_to_snirf, path_to_xdf, False)
 pass
+
+
+
+import snirf
+from mne.io import read_raw_snirf
+
+snirf_intensity = read_raw_snirf("converted.snirf")
+snirf_intensity.plot(n_channels=64, duration=30000, show_scrollbars=False)
