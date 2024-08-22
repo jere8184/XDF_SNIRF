@@ -1,23 +1,31 @@
 from astropy import units as u
 import pydash
+import array
+import numpy
 
-
-def get(dict_to_search, path: str):
+def get(dict_to_search: dict, path: str):
     try:
-        value: str = pydash.get(dict_to_search, path)[0]
-        if isinstance(value, dict) or isinstance(value, list):
+        value = pydash.get(dict_to_search, path)
+        if isinstance(value, dict) or isinstance(value, numpy.ndarray):
             return value
-        if value.lstrip('-+').replace('.','', 1).isnumeric():
+        elif isinstance(value, list):
+            if len(value) == 1:
+                return value[0]
+            else:
+                return value
+        elif value.lstrip('-+').replace('.','', 1).isnumeric():
             value = float(value)
             if value.is_integer():
                 value = int(value) 
         return value              
     except:
         try:
-            location, new_path  = path.split(".", 1)
+            location, remaining_path  = path.split(".", 1)
+            if not remaining_path:
+                return None
             value = get(dict_to_search, location)
             if value:
-                return get(value, new_path)
+                return get(value, remaining_path)
         except:
             pass
         print(f"{path} not founds")
@@ -27,9 +35,9 @@ def get_index(in_list, val):
     try:
         return in_list.index(val)
     except ValueError:
-        return -1 
+        return None 
     
-def try_append(list, val, default = False, all = False):
+def try_append(list, val, default: str = None, all = False):
     if all:
         for x in val:
             if not x:
@@ -40,9 +48,29 @@ def try_append(list, val, default = False, all = False):
     elif default:
         list.append(default)
 
-def try_add(set, val):
+def try_add(set, val, default: str = None, all = False):
+    if all:
+        for x in val:
+            if not x:
+                return
     if val:
         set.add(val)
+    elif default:
+        set.add(default)
+    
+
+def search(key, var):
+    if hasattr(var,'items'): # hasattr(var,'items') for python 3
+        for k, v in var.items(): # var.items() for python 3
+            if k == key:
+                yield v
+            if isinstance(v, dict):
+                for result in search(key, v):
+                    yield result
+            elif isinstance(v, list):
+                for d in v:
+                    for result in search(key, d):
+                        yield result
 
 def Get_Measure(snirf_data_type):
     match snirf_data_type:
@@ -73,34 +101,37 @@ def Get_Measure(snirf_data_type):
         case 99999:
             return "Processed"
         
-def Get_DataType(xdf_type):
-    match xdf_type:
-        case "CW_Amplitude":
-            return 1
-        case "CW_Fluorescence Amplitude":
-            return 51
-        case "FD_AC_Amplitude":
-            return 101
-        case "FD_Phase":    
-            return 102
-        case "FD_Fluorescence_Amplitude":
-            return 151
-        case "FD_Fluorescence_Phase":
-            return 152
-        case "TD_Gated_Amplitude":
-            return 201
-        case "TD_Gated_Fluorescence_Amplitude":
-            return 251
-        case "TD_Moments_Amplitude":
-            return 301
-        case "TD_Moments_Fluorescence_Amplitude":
-            return 351
-        case "DCS_g2":
-            return 401
-        case "BFi":
-            return 410
-        case "Processed":
-            return 99999
+def Get_DataType(measure: str = "", modality: str = ""):
+    data_third_digit = "0"
+    measure = measure.upper()
+    modality = modality.upper()
+
+    if measure.find("AMPLITUDE") != -1 or modality.find("AMPLITUDE") != -1:
+        data_third_digit = "1"
+
+    elif measure.find("PHASE") != -1 or modality.find("PHASE") != -1:
+        data_third_digit = "2" 
+    
+    data_second_digit = "0"
+    if measure.find("FLUORESCENCE") != -1 or modality.find("FLUORESCENCE") != -1:
+        data_second_digit = "5"
+
+    data_first_digit = "0"
+    if measure.find("FD") != -1 or modality.find("fd") != -1:
+        data_first_digit = "1"
+
+    elif measure.find("TD") != -1 or modality.find("TD") != -1:
+        data_first_digit = "2"
+        if measure.find("MOMENTS") != -1 or modality.find("MOMENTS") != -1:
+            data_first_digit = "3"
+
+    elif measure.find("DCS") != -1 or modality.find("DCS") != -1:
+        data_first_digit = "4"
+
+    if measure.find("PROCESSED") != -1 or modality.find("PROCESSED") != -1:
+        return 99999
+
+    return int(data_first_digit + data_second_digit + data_third_digit)
 
 def Is_Frequency_Domain(snirf_data_type):
     if snirf_data_type > 100 and snirf_data_type < 201:
@@ -128,5 +159,6 @@ def Is_DCS(snirf_data_type):
         return False 
 
 def convert(current_unit, target_unit, value):
-    current_unit_per_target_unit = u.Unit(current_unit).to(u.Unit(target_unit))
-    return value * current_unit_per_target_unit
+    if value:
+        current_unit_per_target_unit = u.Unit(current_unit).to(u.Unit(target_unit))
+        return value * current_unit_per_target_unit

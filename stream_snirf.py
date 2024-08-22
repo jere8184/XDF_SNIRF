@@ -18,8 +18,6 @@ class SnirfStreamer:
         self.StreamOverLSL()
 
     def PopulateStreamInfo(self):
-        
-        
         channels = self.stream_info.desc().append_child("channels")
         for measurement_list in self.snirf_measurement_list:
             channel = channels.append_child("channel")
