@@ -8,7 +8,7 @@ f = 1    # Frequency of the sine wave (Hz)
 duration = 100  # Duration of the signal in seconds
 
 # Create LSL stream info and outlet
-info = StreamInfo('SineWave', 'EEG', 1, fs, 'float32', 'myuid34234')
+info = StreamInfo('SineWave', 'EEG', 1, fs, 'float32', '111')
 outlet = StreamOutlet(info)
 
 print("Now sending data...")

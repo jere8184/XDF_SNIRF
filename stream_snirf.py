@@ -3,13 +3,12 @@ import pylsl
 import utils
 import time as t
 
-#load snirf file
-snirf_file : snirf.Snirf = snirf.loadSnirf("./sub-01_task-tapping_nirs.snirf", False, True)
+
 
 class SnirfStreamer:
     def __init__(self, snirf_file : snirf.Snirf):
         self.snirf_file = snirf_file
-        self.resulut = self.snirf_file.validate()
+        #self.resulut = self.snirf_file.validate()
         self.snirf_probe: snirf.Probe = snirf_file.nirs[0].probe
         self.snirf_meta_data: snirf.MetaDataTags = snirf_file.nirs[0].metaDataTags
         self.snirf_measurement_list: snirf.MeasurementList = snirf_file.nirs[0].data[0].measurementList
@@ -180,9 +179,11 @@ class SnirfStreamer:
 
     def StreamOverLSL(self):
         stream_outlet = pylsl.stream_outlet(self.stream_info)
-        for data in snirf_file.nirs[0].data[0].dataTimeSeries:
-            stream_outlet.push_sample(data)
+        for data, time in  zip(snirf_file.nirs[0].data[0].dataTimeSeries, snirf_file.nirs[0].data[0].time):
+            stream_outlet.push_sample(data, time)
             t.sleep(0.01)
 
 
+#load snirf file
+snirf_file : snirf.Snirf = snirf.loadSnirf("./data/matlab_converted_lumo.snirf", False, True)
 SnirfStreamer(snirf_file)
