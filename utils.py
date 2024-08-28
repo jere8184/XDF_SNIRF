@@ -8,12 +8,12 @@ def get(dict_to_search: dict, path: str):
         value = pydash.get(dict_to_search, path)
         if isinstance(value, dict) or isinstance(value, numpy.ndarray):
             return value
-        elif isinstance(value, list):
+        if isinstance(value, list):
             if len(value) == 1:
-                return value[0]
+                value = value[0]
             else:
                 return value
-        elif value.lstrip('-+').replace('.','', 1).isnumeric():
+        if value.lstrip('-+').replace('.','', 1).isnumeric():
             value = float(value)
             if value.is_integer():
                 value = int(value) 
@@ -127,8 +127,13 @@ def Get_DataType(measure: str = "", modality: str = ""):
 
     elif measure.find("DCS") != -1 or modality.find("DCS") != -1:
         data_first_digit = "4"
+        if measure.find("G2") != -1 or modality.find("G2") != -1:
+            data_third_digit = "1"
+        if measure.find("BFI") != -1 or modality.find("BFI") != -1:
+            data_second_digit = "1"
 
-    if measure.find("PROCESSED") != -1 or modality.find("PROCESSED") != -1:
+
+    elif measure.find("PROCESSED") != -1 or modality.find("PROCESSED") != -1:
         return 99999
 
     return int(data_first_digit + data_second_digit + data_third_digit)
@@ -140,20 +145,20 @@ def Is_Frequency_Domain(snirf_data_type):
         return False
     
 def Is_Gated_Time_Domain(snirf_data_type):
-    if snirf_data_type > 201 and snirf_data_type < 300:
+    if snirf_data_type > 200 and snirf_data_type < 301:
         return True
     else:
         return False
     
 
 def Is_Moment_Time_Domain(snirf_data_type):
-    if snirf_data_type > 301 and snirf_data_type < 400:
+    if snirf_data_type > 300 and snirf_data_type < 401:
         return True
     else:
         return False
 
 def Is_DCS(snirf_data_type):
-    if snirf_data_type > 401 and snirf_data_type < 500:
+    if snirf_data_type > 400 and snirf_data_type < 501:
         return True
     else:
         return False 

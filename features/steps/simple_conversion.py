@@ -17,13 +17,20 @@ def step_impl(context):
 @When("we convert the channels into snirf measumentLists and probe")
 def step_impl(context):
     context.snirf_probe =  XDF_TO_SNIRF.XdfToSnirfProbe(context.channels, context.optodes).probe
+    context.snirf_channels = []
     for channel in context.channels:
-        context.snirf_channel = XDF_TO_SNIRF.XdfToSnirfMeasurmentListElement(channel, context.snirf_probe)
+        context.snirf_channels.append(XDF_TO_SNIRF.XdfToSnirfMeasurmentListElement(channel, context.snirf_probe).measurmentListElement)
 
 @Then("the probe and the measumentLists will have the following data")
 def step_impl(context):
         wavelen1 = context.table[0]["probe_wavelen1"]
         wavelen2 = context.table[0]["probe_wavelen2"]
         wavelen3 = context.table[0]["probe_wavelen3"]
-
         assert wavelen1; wavelen2; wavelen3 in context.snirf_probe.wavelengths
+        for i, measurmentList in enumerate(context.snirf_channels):
+            assert measurmentList.dataType == int(context.table[i]["measurmentList_datatype"])
+            assert measurmentList.dataTypeIndex[0] == int(context.table[i]["measurmentList_datatypeindex1"])
+            assert measurmentList.wavelengthIndex == int(context.table[i]["measurmentList_wavelengthIndex"])
+
+
+
