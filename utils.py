@@ -6,6 +6,8 @@ import numpy
 def get(dict_to_search: dict, path: str):
     try:
         value = pydash.get(dict_to_search, path)
+        if value is None:
+            raise
         if isinstance(value, dict) or isinstance(value, numpy.ndarray):
             return value
         if isinstance(value, list):
@@ -13,7 +15,7 @@ def get(dict_to_search: dict, path: str):
                 value = value[0]
             else:
                 return value
-        if value.lstrip('-+').replace('.','', 1).isnumeric():
+        if isinstance(value, str) and value.lstrip('-+').replace('.','', 1).isnumeric():
             value = float(value)
             if value.is_integer():
                 value = int(value) 
@@ -102,6 +104,8 @@ def Get_Measure(snirf_data_type):
             return "Processed"
         
 def Get_DataType(measure: str = "", modality: str = ""):
+    data_first_digit = "0"
+    data_second_digit = "0"
     data_third_digit = "0"
     measure = measure.upper()
     modality = modality.upper()
@@ -112,11 +116,9 @@ def Get_DataType(measure: str = "", modality: str = ""):
     elif measure.find("PHASE") != -1 or modality.find("PHASE") != -1:
         data_third_digit = "2" 
     
-    data_second_digit = "0"
     if measure.find("FLUORESCENCE") != -1 or modality.find("FLUORESCENCE") != -1:
         data_second_digit = "5"
 
-    data_first_digit = "0"
     if measure.find("FD") != -1 or modality.find("fd") != -1:
         data_first_digit = "1"
 
